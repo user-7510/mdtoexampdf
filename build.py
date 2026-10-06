@@ -1,10 +1,16 @@
-import argparse, html, os, pathlib, re, sys
+import argparse, html, math, os, pathlib, re, sys, unicodedata
 import markdown
 from weasyprint import HTML
 
 scriptDir = os.path.dirname(os.path.abspath(__file__))
 paperNames = {"a3", "a4", "a5", "b4", "b5", "letter", "legal"}
 fontExts = (".ttf", ".otf", ".ttc")
+paperSizes = {"a3": (297, 420), "a4": (210, 297), "a5": (148, 210), "b4": (250, 353), "b5": (176, 250), "letter": (215.9, 279.4), "legal": (215.9, 355.6)}
+pageMarginMm = 12.7
+boxPaddingMm = 2
+boxSafety = 0.97
+headingEm = {1: 1.25, 2: 1.1}
+ptToMm = 25.4 / 72
 
 questionRe = re.compile(r"^(\d+)\.\s*[(（]\s*([^()（）]*?)\s*[)）]\s?(.*)$")
 breakRe = re.compile(r"^(#{1,6}\s|>)")
@@ -63,9 +69,12 @@ def parsePaper(value, landscape):
         w, h = float(custom.group(1)), float(custom.group(2))
         if landscape and w < h:
             w, h = h, w
-        return "%gmm %gmm" % (w, h)
-    if value.lower() in paperNames:
-        return value.upper() + (" landscape" if landscape else "")
+        return "%gmm %gmm" % (w, h), w
+    if value.lower() in paperSizes:
+        w, h = paperSizes[value.lower()]
+        if landscape:
+            w, h = h, w
+        return value.upper() + (" landscape" if landscape else ""), w
     sys.exit("不支援的紙張：%s（可用 A3 A4 A5 B4 B5 Letter Legal，或 寬x高 單位 mm，例如 270x390）" % value)
 
 def resolveFont(value):
@@ -83,20 +92,42 @@ def resolveFont(value):
         sys.exit("找不到字型檔：" + value)
     return "", '"%s", serif' % value
 
-def buildCss(font, fontSize, paper):
+def charEm(ch):
+    return 1.0 if unicodedata.east_asian_width(ch) in "WF" else 0.55
+
+def boxScale(text, fontSize, paperWidthMm):
+    availEm = (paperWidthMm - 2 * pageMarginMm - 2 * boxPaddingMm - 0.6) / (fontSize * ptToMm) * boxSafety
+    widest = 0.0
+    for line in text.splitlines():
+        if not line.startswith(">"):
+            continue
+        body = line[1:].strip()
+        weight = 1.0
+        heading = re.match(r"(#{1,6})\s+(.*)", body)
+        if heading:
+            body = heading.group(2)
+            weight = headingEm.get(len(heading.group(1)), 1.0)
+        body = re.sub(r"[*_`]|<[^>]+>", "", body)
+        widest = max(widest, sum(charEm(c) for c in body) * weight)
+    if widest <= availEm:
+        return 1.0
+    return max(0.3, math.floor(availEm / widest * 100) / 100)
+
+def buildCss(font, fontSize, paper, scale):
     fontFace, family = resolveFont(font)
     footerSize = round(fontSize * 0.8, 1)
     return (
         fontFace + "\n"
-        "@page { size: " + paper + "; margin: 15mm; @bottom-center { font-family: " + family + "; font-size: " + str(footerSize) + "pt; content: \"第\" counter(page) \"頁/共\" counter(pages) \"頁\"; } }\n"
+        "@page { size: " + paper + "; margin: " + str(pageMarginMm) + "mm; @bottom-center { font-family: " + family + "; font-size: " + str(footerSize) + "pt; content: \"第\" counter(page) \"頁/共\" counter(pages) \"頁\"; } }\n"
         "body { font-family: " + family + "; font-size: " + str(fontSize) + "pt; line-height: 1.6; }\n"
+        + ("blockquote { font-size: " + str(round(scale * 100)) + "%; }\n" if scale < 1 else "")
     )
 
-def buildPdf(src, out, showKey, font, fontSize, paper):
+def buildPdf(src, out, showKey, font, fontSize, paper, paperWidthMm):
     baseDir = os.path.dirname(os.path.abspath(src))
     text = open(src, encoding="utf-8").read()
     checkImages(text, baseDir)
-    page = "<style>" + buildCss(font, fontSize, paper) + "</style>" + renderBody(text, showKey)
+    page = "<style>" + buildCss(font, fontSize, paper, boxScale(text, fontSize, paperWidthMm)) + "</style>" + renderBody(text, showKey)
     baseUrl = pathlib.Path(baseDir).as_uri() + "/"
     HTML(string=page, base_url=baseUrl).write_pdf(out, stylesheets=[os.path.join(scriptDir, "exam.css")], hinting=True)
 
@@ -112,4 +143,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if not 6 <= args.fontSize <= 40:
         sys.exit("--font-size 需介於 6 到 40（單位 pt）")
-    buildPdf(args.src, args.out, args.key, args.font, args.fontSize, parsePaper(args.paper, args.landscape))
+    paper, paperWidthMm = parsePaper(args.paper, args.landscape)
+    buildPdf(args.src, args.out, args.key, args.font, args.fontSize, paper, paperWidthMm)
+
