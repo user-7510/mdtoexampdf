@@ -1,4 +1,4 @@
-# md-exam-pdf
+# mdtoexampdf
 
 [English](README.en.md) | 繁體中文
 
@@ -26,7 +26,7 @@ Python 3、[Python-Markdown](https://python-markdown.github.io/)、[WeasyPrint](
 ## 專案結構
 
 ```
-md-exam-pdf/
+mdtoexampdf/
   build.py
   exam.css
   requirements.txt

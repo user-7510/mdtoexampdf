@@ -1,4 +1,4 @@
-# md-exam-pdf
+# mdtoexampdf
 
 English | [繁體中文](README.md)
 
@@ -26,7 +26,7 @@ Tested on: Termux (Python 3.14, WeasyPrint 70.0, Markdown 3.11).
 ## Project Layout
 
 ```
-md-exam-pdf/
+mdtoexampdf/
   build.py
   exam.css
   requirements.txt
