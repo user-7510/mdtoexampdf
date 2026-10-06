@@ -1,0 +1,10 @@
+h1 { font-size: 1.25em; margin: 0 0 2mm; }
+h2 { font-size: 1.1em; margin: 3mm 0; }
+blockquote { border: 1px solid #000; margin: 0 0 3mm; padding: 2mm; text-align: center; }
+.q { padding-left: 4.5em; }
+.q p { margin: 1mm 0; }
+.q .stem { text-indent: -4.5em; }
+.no, .ans { display: inline-block; white-space: pre; text-indent: 0; }
+.no { width: 1.5em; }
+.ans { width: 3em; }
+img { max-width: 40%; }
